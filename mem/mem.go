@@ -9,6 +9,13 @@ type MemCache struct {
 	MemStat
 }
 
+func NewMemCache() *MemCache {
+	return &MemCache{sync.Map{}, MemStat{
+		keys: 0,
+		sz:   0,
+	}}
+}
+
 func (mc *MemCache) Get(k string) ([]byte, error) {
 	value, ok := mc.Load(k)
 	if !ok {
