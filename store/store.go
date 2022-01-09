@@ -1,6 +1,9 @@
 package store
 
+import "cacheme/stat"
+
 type Store struct {
+	StoreStat
 }
 
 func (s *Store) Get(k string) ([]byte, error) {
