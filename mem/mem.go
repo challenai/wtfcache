@@ -25,9 +25,13 @@ func (mc *MemCache) Get(k string) ([]byte, error) {
 }
 
 func (mc *MemCache) Set(k string, v []byte) error {
-	mc.Store(k, v)
-	mc.MemStat.incr(1)
-	mc.MemStat.incrSz(int64(len(k) + len(v)))
+	v_, exist := mc.LoadOrStore(k, v)
+	if !exist {
+		mc.MemStat.incr(1)
+		mc.MemStat.incrSz(int64(len(k) + len(v)))
+		return nil
+	}
+	mc.MemStat.incrSz(int64(len(v) - len(v_.([]byte))))
 	return nil
 }
 

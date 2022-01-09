@@ -2,7 +2,9 @@ package mem
 
 import (
 	"bytes"
-	"strconv"
+	"cacheme/tests"
+	"fmt"
+	"math/rand"
 	"sync"
 	"testing"
 )
@@ -103,7 +105,7 @@ func TestGetSz(t *testing.T) {
 			t.Fail()
 		}
 	}
-	for _, e := range entries[:60] {
+	for _, e := range entries[33:66] {
 		err := mc.Set(e.k, e.v)
 		if err != nil {
 			t.Fail()
@@ -124,11 +126,13 @@ func mockEntries(sz int) ([]Entry, int64, int64) {
 	var vsz int64 = 0
 	for i := 0; i < sz; i++ {
 		entries[i] = Entry{
-			k: strconv.Itoa(i),
-			v: []byte(""),
+			k: fmt.Sprintf("%s%d", tests.RandStringRunes(2+rand.Intn(4)), i),
+			// k: "key_" + strconv.Itoa(i),
+			v: []byte(tests.RandStringRunes(8 + rand.Intn(32))),
 		}
-		ksz += 1
-		vsz += 0
+		ksz += int64(len(entries[i].k))
+		vsz += int64(len(entries[i].v))
+		// println(entries[i].k, string(entries[i].v))
 	}
 	return entries, ksz, vsz
 }
