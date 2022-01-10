@@ -1,5 +1,7 @@
 package main
 
+import "cacheme/interface/xhttp"
+
 func main() {
-	println("hello, cache")
+	xhttp.BoostrapHTTPServer()
 }
