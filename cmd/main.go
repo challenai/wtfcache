@@ -1,7 +1,10 @@
 package main
 
-import "cacheme/interface/xhttp"
+import "cacheme/interface/xnet"
+
+// import "cacheme/interface/xhttp"
 
 func main() {
-	xhttp.BoostrapHTTPServer()
+	// xhttp.BoostrapHTTPServer()
+	xnet.BootstrapTCPServer()
 }
