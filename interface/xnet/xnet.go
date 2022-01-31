@@ -3,11 +3,12 @@ package xnet
 import (
 	"cacheme/cache"
 	"cacheme/mem"
-	"io"
+	"fmt"
 	"log"
 	"net"
-	"os"
+	"runtime"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -16,16 +17,12 @@ const (
 )
 
 type CacheServer struct {
-	c     cache.Cache
-	ln    net.Listener
-	conns []net.Conn
+	c       cache.Cache
+	ln      net.Listener
+	clients []*Client
 }
 
-func (cs *CacheServer) handleConn(conn net.Conn) {
-	io.Copy(os.Stdout, conn)
-}
-
-func BootstrapTCPServer() {
+func BootstrapTCPServer() error {
 	var err error
 	server := CacheServer{
 		c: mem.NewMemCache(),
@@ -39,10 +36,19 @@ func BootstrapTCPServer() {
 	for {
 		conn, err := server.ln.Accept()
 		if err != nil {
-			log.Printf("server can't accept connection: %s\n", err.Error())
-			continue
+			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+				log.Printf("temporary Accept() failure - %s", err)
+				runtime.Gosched()
+				continue
+			}
+			if !strings.Contains(err.Error(), "use of closed network connection") {
+				return fmt.Errorf("listener.Accept() error - %s", err)
+			}
+			break
 		}
-		server.conns = append(server.conns, conn)
-		go server.handleConn(conn)
+		client := NewClient(conn)
+		server.clients = append(server.clients, client)
+		go client.Start()
 	}
+	return nil
 }
