@@ -2,7 +2,7 @@ package xnet
 
 import (
 	"cacheme/cache"
-	"cacheme/mem"
+	"cacheme/store"
 	"fmt"
 	"log"
 	"net"
@@ -24,8 +24,15 @@ type CacheServer struct {
 
 func BootstrapTCPServer() error {
 	var err error
+	var c cache.Cache
+	c, err = store.NewStore("./badger")
+	if err != nil {
+		log.Println("can't open store directory")
+		panic(err)
+	}
 	server := CacheServer{
-		c: mem.NewMemCache(),
+		// c: mem.NewMemCache(),
+		c: c,
 	}
 	addr := net.JoinHostPort(HOST, strconv.Itoa(PORT))
 	server.ln, err = net.Listen("tcp", addr)
@@ -46,7 +53,7 @@ func BootstrapTCPServer() error {
 			}
 			break
 		}
-		client := NewClient(conn)
+		client := NewClient(conn, &server)
 		server.clients = append(server.clients, client)
 		go client.Start()
 	}

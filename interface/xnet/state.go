@@ -19,14 +19,16 @@ type Client struct {
 	w *bufio.Writer
 	// is a valid cache protocol
 	valid bool
+	s     *CacheServer
 }
 
-func NewClient(c net.Conn) *Client {
+func NewClient(c net.Conn, s *CacheServer) *Client {
 	return &Client{
 		c:     c,
 		r:     bufio.NewReader(c),
 		w:     bufio.NewWriter(c),
 		valid: false,
+		s:     s,
 	}
 }
 
@@ -73,11 +75,11 @@ func (c *Client) Read() error {
 	// we can only use bytes.Equal to compare
 	switch {
 	case bytes.Equal(fields[0], []byte("GET")):
-		c.OpGet()
+		c.OpGet(string(fields[1]))
 	case bytes.Equal(fields[0], []byte("SET")):
-		c.OpSet()
+		c.OpSet(string(fields[1]), fields[2])
 	default:
-		c.Write([]byte("- UNKNOWN COMMAND"))
+		c.Write([]byte("- UNKNOWN COMMAND \n"))
 	}
 	return nil
 }
@@ -87,10 +89,22 @@ func (c *Client) Write(b []byte) {
 	c.w.Flush()
 }
 
-func (c *Client) OpGet() {
-	c.Write([]byte("GET a key\n"))
+func (c *Client) OpGet(k string) {
+	v, err := c.s.c.Get(k)
+	if err != nil {
+		log.Println(err)
+		c.Write([]byte("- ERROR \n"))
+		return
+	}
+	c.w.Write(v)
 }
 
-func (c *Client) OpSet() {
-	c.Write([]byte("SET a key\n"))
+func (c *Client) OpSet(k string, v []byte) {
+	err := c.s.c.Set(k, v)
+	if err != nil {
+		log.Println(err)
+		c.Write([]byte("- ERROR \n"))
+		return
+	}
+	c.Write([]byte("+ OK \n"))
 }

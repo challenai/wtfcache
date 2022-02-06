@@ -2,7 +2,7 @@ package xhttp
 
 import (
 	"cacheme/cache"
-	"cacheme/mem"
+	"cacheme/store"
 	"encoding/json"
 	"log"
 	"net"
@@ -40,6 +40,7 @@ func HandleGetKey(w http.ResponseWriter, req *http.Request) {
 	key := pathList[len(pathList)-1]
 	v, err := server.c.Get(key)
 	if err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -104,8 +105,16 @@ func HandleNotFound(w http.ResponseWriter, req *http.Request) {
 }
 
 func BoostrapHTTPServer() {
+	var err error
+	var c cache.Cache
+	c, err = store.NewStore("./badger")
+	if err != nil {
+		log.Println("can't open store directory")
+		panic(err)
+	}
 	server = HTTPCacheServer{
-		c: mem.NewMemCache(),
+		// c: mem.NewMemCache(),
+		c: c,
 	}
 	http.HandleFunc("/key/", CacheRoute)
 	http.HandleFunc("/stat", HandleGetInfo)
