@@ -11,18 +11,19 @@ import (
 	"strings"
 )
 
-const (
-	HOST = "localhost"
-	PORT = 1235
-)
+type Conf struct {
+	Host string
+	Port int
+}
 
 type CacheServer struct {
+	conf    *Conf
 	c       cache.Cache
 	ln      net.Listener
 	clients []*Client
 }
 
-func BootstrapTCPServer() error {
+func BootstrapTCPServer(conf *Conf) error {
 	var err error
 	var c cache.Cache
 	c, err = store.NewStore("./badger")
@@ -32,9 +33,10 @@ func BootstrapTCPServer() error {
 	}
 	server := CacheServer{
 		// c: mem.NewMemCache(),
-		c: c,
+		conf: conf,
+		c:    c,
 	}
-	addr := net.JoinHostPort(HOST, strconv.Itoa(PORT))
+	addr := net.JoinHostPort(conf.Host, strconv.Itoa(conf.Port))
 	server.ln, err = net.Listen("tcp", addr)
 	defer server.ln.Close()
 	if err != nil {

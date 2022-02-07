@@ -11,13 +11,14 @@ import (
 	"strings"
 )
 
-const (
-	HOST = "localhost"
-	PORT = 1234
-)
+type Conf struct {
+	Host string
+	Port int
+}
 
 type HTTPCacheServer struct {
-	c cache.Cache
+	conf *Conf
+	c    cache.Cache
 }
 
 var server HTTPCacheServer
@@ -104,7 +105,7 @@ func HandleNotFound(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func BoostrapHTTPServer() {
+func BoostrapHTTPServer(conf *Conf) {
 	var err error
 	var c cache.Cache
 	c, err = store.NewStore("./badger")
@@ -114,13 +115,14 @@ func BoostrapHTTPServer() {
 	}
 	server = HTTPCacheServer{
 		// c: mem.NewMemCache(),
-		c: c,
+		conf: conf,
+		c:    c,
 	}
 	http.HandleFunc("/key/", CacheRoute)
 	http.HandleFunc("/stat", HandleGetInfo)
 	http.HandleFunc("*", HandleNotFound)
-	log.Println("http server is listenning at port:", PORT)
-	if err := http.ListenAndServe(net.JoinHostPort(HOST, strconv.Itoa(PORT)), nil); err != nil {
+	log.Println("http server is listenning at port:", conf.Port)
+	if err := http.ListenAndServe(net.JoinHostPort(conf.Host, strconv.Itoa(conf.Port)), nil); err != nil {
 		log.Fatal("can't bootstrap http server: ", err.Error())
 	}
 }
