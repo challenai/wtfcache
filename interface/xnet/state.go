@@ -10,6 +10,7 @@ import (
 )
 
 const LF byte = 10
+const CR byte = 13
 
 var SEP = []byte{32}
 
@@ -57,6 +58,16 @@ func (c *Client) Start() {
 	}
 }
 
+func trimCRLF(ln []byte) []byte {
+	if len(ln) == 0 {
+		return ln
+	}
+	for len(ln) > 0 && (ln[len(ln)-1] == LF || ln[len(ln)-1] == CR) {
+		ln = ln[:len(ln)-1]
+	}
+	return ln
+}
+
 func (c *Client) Read() error {
 	ln, err := c.r.ReadSlice(LF)
 	if err != nil {
@@ -67,6 +78,7 @@ func (c *Client) Read() error {
 		return nil
 	}
 	ln = bytes.Trim(ln, " ")
+	ln = trimCRLF(ln)
 	fields := bytes.Split(ln, SEP)
 	if len(fields) == 0 {
 		// write to connection
@@ -97,6 +109,7 @@ func (c *Client) OpGet(k string) {
 		return
 	}
 	c.w.Write(v)
+	c.Write([]byte{LF})
 }
 
 func (c *Client) OpSet(k string, v []byte) {
