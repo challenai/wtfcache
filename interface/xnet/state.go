@@ -4,52 +4,37 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"io"
+	"fmt"
 	"log"
 	"net"
+	"strconv"
+	"strings"
 )
 
-const LF byte = 10
-const CR byte = 13
+const CR byte = 0x0d
+const LF byte = 0x0a
 
 var SEP = []byte{32}
+var deli = []byte{0x0d, 0x0a}
 
 type Client struct {
 	c net.Conn
 	r *bufio.Reader
 	w *bufio.Writer
-	// is a valid cache protocol
-	valid bool
-	s     *CacheServer
+	s *CacheServer
 }
 
 func NewClient(c net.Conn, s *CacheServer) *Client {
 	return &Client{
-		c:     c,
-		r:     bufio.NewReader(c),
-		w:     bufio.NewWriter(c),
-		valid: false,
-		s:     s,
+		c: c,
+		r: bufio.NewReader(c),
+		w: bufio.NewWriter(c),
+		s: s,
 	}
 }
 
 func (c *Client) Start() {
-	// magic: `cch `
-	magic := []byte("cch ")
-	header := make([]byte, 4)
-	n, err := io.ReadFull(c.c, header)
-	if n != 4 || !bytes.Equal(magic, header) {
-		log.Println("wrong client")
-		c.Write([]byte("wrong protocol"))
-		c.c.Close()
-		return
-	}
-	if err != nil {
-		log.Println(err)
-		c.c.Close()
-		return
-	}
-	c.Write([]byte("OK\n"))
+	var err error
 	for {
 		err = c.Read()
 		if err != nil {
@@ -70,12 +55,9 @@ func trimCRLF(ln []byte) []byte {
 
 func (c *Client) Read() error {
 	ln, err := c.r.ReadSlice(LF)
+	// println(string(ln), err)
 	if err != nil {
 		return err
-	}
-	if !c.valid {
-		c.valid = true
-		return nil
 	}
 	ln = bytes.Trim(ln, " ")
 	ln = trimCRLF(ln)
@@ -91,7 +73,8 @@ func (c *Client) Read() error {
 	case bytes.Equal(fields[0], []byte("SET")):
 		c.OpSet(string(fields[1]), fields[2])
 	default:
-		c.Write([]byte("- UNKNOWN COMMAND \n"))
+		c.w.Write([]byte(fmt.Sprintf("-ERR unknown command `%s`, with args beginning with:", fields[0])))
+		c.Write(deli)
 	}
 	return nil
 }
@@ -104,20 +87,30 @@ func (c *Client) Write(b []byte) {
 func (c *Client) OpGet(k string) {
 	v, err := c.s.c.Get(k)
 	if err != nil {
-		log.Println(err)
-		c.Write([]byte("- ERROR \n"))
+		if strings.Contains(err.Error(), "Key not found") {
+			c.w.Write([]byte("$-1"))
+			c.Write(deli)
+			return
+		}
+		c.w.Write([]byte("-ERR "))
+		c.Write(deli)
 		return
 	}
+	c.w.Write([]byte("$" + strconv.Itoa(len(v))))
+	c.w.Write(deli)
 	c.w.Write(v)
-	c.Write([]byte{LF})
+	c.Write(deli)
 }
 
 func (c *Client) OpSet(k string, v []byte) {
 	err := c.s.c.Set(k, v)
 	if err != nil {
 		log.Println(err)
-		c.Write([]byte("- ERROR \n"))
+		c.w.Write([]byte("-ERR \n"))
+		c.w.Write(deli)
+		c.w.Flush()
 		return
 	}
-	c.Write([]byte("+ OK \n"))
+	c.w.Write([]byte("+OK"))
+	c.Write(deli)
 }
