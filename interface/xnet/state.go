@@ -1,35 +1,26 @@
 package xnet
 
 import (
-	"bufio"
 	"bytes"
+	"cacheme/utils/buffer"
 	"errors"
 	"fmt"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 )
 
-const CR byte = 0x0d
-const LF byte = 0x0a
-
-var SEP = []byte{32}
-var deli = []byte{0x0d, 0x0a}
+var SEPERATOR = []byte{0x20}
 
 type Client struct {
-	c net.Conn
-	r *bufio.Reader
-	w *bufio.Writer
-	s *CacheServer
+	s   *CacheServer
+	buf *buffer.Buffer
 }
 
 func NewClient(c net.Conn, s *CacheServer) *Client {
 	return &Client{
-		c: c,
-		r: bufio.NewReader(c),
-		w: bufio.NewWriter(c),
-		s: s,
+		buf: buffer.NewBuffer(c),
+		s:   s,
 	}
 }
 
@@ -43,25 +34,13 @@ func (c *Client) Start() {
 	}
 }
 
-func trimCRLF(ln []byte) []byte {
-	if len(ln) == 0 {
-		return ln
-	}
-	for len(ln) > 0 && (ln[len(ln)-1] == LF || ln[len(ln)-1] == CR) {
-		ln = ln[:len(ln)-1]
-	}
-	return ln
-}
-
 func (c *Client) Read() error {
-	ln, err := c.r.ReadSlice(LF)
-	// println(string(ln), err)
+	ln, err := c.buf.ReadBytesLine()
 	if err != nil {
 		return err
 	}
-	ln = bytes.Trim(ln, " ")
-	ln = trimCRLF(ln)
-	fields := bytes.Split(ln, SEP)
+
+	fields := bytes.Split(ln, SEPERATOR)
 	if len(fields) == 0 {
 		// write to connection
 		return errors.New("wrong parameters")
@@ -69,48 +48,43 @@ func (c *Client) Read() error {
 	// we can only use bytes.Equal to compare
 	switch {
 	case bytes.Equal(fields[0], []byte("GET")):
-		c.OpGet(string(fields[1]))
+		c.OpGet(fields)
 	case bytes.Equal(fields[0], []byte("SET")):
-		c.OpSet(string(fields[1]), fields[2])
+		c.OpSet(fields)
 	default:
-		c.w.Write([]byte(fmt.Sprintf("-ERR unknown command `%s`, with args beginning with:", fields[0])))
-		c.Write(deli)
+		c.buf.WriteStringEnd(fmt.Sprintf("-ERR unknown command `%s`, with args beginning with:", fields[0]))
 	}
 	return nil
 }
 
-func (c *Client) Write(b []byte) {
-	c.w.Write(b)
-	c.w.Flush()
-}
-
-func (c *Client) OpGet(k string) {
-	v, err := c.s.c.Get(k)
+func (c *Client) OpGet(fields [][]byte) {
+	if len(fields) < 2 {
+		c.buf.WriteStringEnd("-ERR get args not enough")
+		return
+	}
+	v, err := c.s.c.Get(string(fields[1]))
 	if err != nil {
 		if strings.Contains(err.Error(), "Key not found") {
-			c.w.Write([]byte("$-1"))
-			c.Write(deli)
+			c.buf.WriteStringEnd("$-1")
 			return
 		}
-		c.w.Write([]byte("-ERR "))
-		c.Write(deli)
+		c.buf.WriteStringEnd("-ERR")
 		return
 	}
-	c.w.Write([]byte("$" + strconv.Itoa(len(v))))
-	c.w.Write(deli)
-	c.w.Write(v)
-	c.Write(deli)
+	c.buf.WriteStringLine(fmt.Sprintf("$%d", len(v)))
+	c.buf.WriteBytesEnd(v)
 }
 
-func (c *Client) OpSet(k string, v []byte) {
-	err := c.s.c.Set(k, v)
-	if err != nil {
-		log.Println(err)
-		c.w.Write([]byte("-ERR \n"))
-		c.w.Write(deli)
-		c.w.Flush()
+func (c *Client) OpSet(fields [][]byte) {
+	if len(fields) < 3 {
+		c.buf.WriteStringEnd("-ERR set args not enough")
 		return
 	}
-	c.w.Write([]byte("+OK"))
-	c.Write(deli)
+	err := c.s.c.Set(string(fields[1]), fields[2])
+	if err != nil {
+		log.Println(err)
+		c.buf.WriteStringEnd("-ERR")
+		return
+	}
+	c.buf.WriteStringEnd("+OK")
 }
