@@ -11,4 +11,5 @@ build a distributed cache from scratch
 ### PART 3: support persistence
 [distributed cache part 3: support persistence]()
 
-
+### PART 4: distribute data to different shards
+[distribute cache part 4: distribute data]()
