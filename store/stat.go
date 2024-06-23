@@ -1,12 +1,4 @@
 package store
 
-type StoreStat struct {
-}
-
-func (ss *StoreStat) GetSz() int64 {
-	return 0
-}
-
-func (ss *StoreStat) Count() int64 {
-	return 0
-}
+// store stats to disk and load later
+const STAT_PERSIST_RECORD = "stat_persist_record"
