@@ -91,7 +91,7 @@ func TestCountKeys(t *testing.T) {
 			t.Fail()
 		}
 	}
-	if mc.Count() != 100 {
+	if mc.CountKeys() != 100 {
 		t.Fail()
 	}
 }
